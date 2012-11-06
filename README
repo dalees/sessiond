@@ -1,0 +1,13 @@
+sessiond takes the port number as a parameter.  The default port is 54321.
+
+The timeout is currently hardcoded to 200ms.  It seems to be a reasonable value
+to allow uninterrupted operation in case of sessiond server failure or a lost
+packet.
+
+There is no encryption of sessiond traffic, as the network infrastructure
+within a cluster is usually trusted.
+
+Security requirements for the infrastructure:
+ - sessiond port must not be accessible from untrusted networks
+ - network traffic between stunnel and sessiond must only be accessible by
+   trusted personnel

@@ -1,0 +1,38 @@
+SESSIOND PROTOCOL VERSION 1 DESCRIPTION
+
+
+1. Request Message Types
+
+#define CACHE_CMD_NEW     0x00
+#define CACHE_CMD_GET     0x01
+#define CACHE_CMD_REMOVE  0x02
+
+
+2. Response Message Types
+
+#define CACHE_RESP_ERR    0x80
+#define CACHE_RESP_OK     0x81
+
+
+3. Message (UDP Packet) Format Syntax
+
+typedef struct {
+    u_char version, type;
+    u_short timeout;
+    u_char key[32];
+    u_char val[512];
+} CACHE_PACKET;
+
+version : always 1
+type    : message (request/response) type as decribed above
+timeout : SSL session timeout in network byte order
+key     : SSL session ID
+val     : DER encoded session
+
+
+4. Lengths of Fields
+
+The length of "key" is always 32 bytes. The value is right-padded with zeros.
+
+The length of "val" is computed based on the UDP packet size.
+
