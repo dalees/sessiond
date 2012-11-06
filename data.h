@@ -27,6 +27,9 @@
 #include <map>
 using namespace std;
 
+// We need to be able to handle up to 2.5 million concurrent SSL connections
+static const size_t MAX_CONCURRENT_SESSIONS = 2500000;
+
 // data definitions
 typedef vector<unsigned char> BYTES;
 
@@ -39,8 +42,8 @@ class DATA {
     map<BYTES, ITEM> storage;
     map<time_t, set<BYTES> > log;
 public:
-    const BYTES find(const BYTES &);
-    const unsigned count(const BYTES &);
+    const bool find(const BYTES &, BYTES &);
+    //const unsigned count(const BYTES &);
     const unsigned size();
     void insert(const BYTES &, const BYTES &, const unsigned);
     void erase(const BYTES &);

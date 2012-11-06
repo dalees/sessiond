@@ -37,8 +37,10 @@
 static const char *winsock_error(); // defined in comm.cpp
 #endif
 
-static BYTES mem2bytes(const unsigned char *, const unsigned);
-static void bytes2mem(unsigned char *, const BYTES &);
+static void mem2bytes(BYTES &dst, const unsigned char *src, const unsigned l);
+static void bytes2mem(unsigned char *dst, const BYTES &src);
+//static BYTES mem2bytes(const unsigned char *, const unsigned);
+//static void bytes2mem(unsigned char *, const BYTES &);
 static void stats(LOG &);
 
 #define CACHE_CMD_NEW     0x00
@@ -84,15 +86,17 @@ void process_request(const int s, const u_short port, LOG &log) {
         return;
     }
     ++delta_trans;
-    BYTES k=mem2bytes(packet.key, KEY_LEN);
+	BYTES k(KEY_LEN);
+    mem2bytes(k, packet.key, KEY_LEN);
     if(packet.type==CACHE_CMD_NEW) {
-        BYTES v=mem2bytes(packet.val, len-(sizeof packet-MAX_VAL_LEN));
+        BYTES v;
+		mem2bytes(v, packet.val, len-(sizeof packet-MAX_VAL_LEN));
         data.insert(k, v, ntohs(packet.timeout));
     } else if(packet.type==CACHE_CMD_GET) {
-        len=sizeof packet-MAX_VAL_LEN;
-        if(data.count(k)) {
+        len=sizeof(packet)-(sizeof(u_char) * MAX_VAL_LEN);
+		BYTES v;
+        if(data.find(k, v)) {
             ++delta_hits;
-            BYTES v=data.find(k);
             bytes2mem(packet.val, v);
             len+=v.size();
             packet.type=CACHE_RESP_OK;
@@ -110,16 +114,14 @@ void process_request(const int s, const u_short port, LOG &log) {
     }
 }
 
-static BYTES mem2bytes(const unsigned char *src, const unsigned l) {
-    BYTES dst(l);
+static void mem2bytes(BYTES &dst, const unsigned char *src, const unsigned l) {
     for(unsigned i=0; i<l; ++i)
         dst[i]=src[i];
-    return dst;
 }
 
 static void bytes2mem(unsigned char *dst, const BYTES &src) {
-    const unsigned l=src.size();
-    for(unsigned i=0; i<l; ++i)
+    const unsigned length=src.size();
+    for(unsigned i=0; i<length; ++i)
         dst[i]=src[i];
 }
 

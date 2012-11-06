@@ -20,13 +20,18 @@
 
 #include "data.h"
 
-const BYTES DATA::find(const BYTES &k) {
-    return storage[k].v;
+const bool DATA::find(const BYTES &k, BYTES &v) {
+	map<BYTES, ITEM>::iterator it = storage.find(k);
+	if (it == storage.end()) return false;
+	
+	v = (*it).second.v;
+	return true;
+    //return storage[k].v;
 }
 
-const unsigned DATA::count(const BYTES &k) {
+/*const unsigned DATA::count(const BYTES &k) {
     return storage.count(k);
-}
+}*/
 
 const unsigned DATA::size() {
     return storage.size();
@@ -64,7 +69,7 @@ void DATA::cleanup(const time_t t) {
     log.erase(begin, end); // erase all log entries expiring within the range
 
     // enforce cache size limit (DoS protection)
-    while(storage.size()>100000) {
+    while(storage.size()>MAX_CONCURRENT_SESSIONS) {
         log_iterator i=log.begin(); // earliest second
         for(set_iterator j=i->second.begin(); j!=i->second.end(); ++j)
             storage.erase(*j);
