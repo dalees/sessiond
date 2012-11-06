@@ -29,6 +29,9 @@
 #else
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <netdb.h>
+#include <sys/types.h>
+#include <arpa/inet.h>
 #endif
 
 // logging is performed every 5 minutes
@@ -42,18 +45,39 @@ static void log_thread(void *);
 static void signal_handler(int);
 #endif
 static void send_empty();
-static u_short port;
+static unsigned int port;
+//static listen_ip;
 static int s;
 
 int main(int argc, char *argv[]) {
-    if(argc<2)
-        port=54321;
-    else
-        port=atoi(argv[1]);
-    if(!port) {
+    if (argc != 3) 
+    {
+        fprintf(stderr, "Usage: %s <hostname|ip|'any'> <udp port>\n", argv[0]);
+        return 1;
+    }
+
+    // parse the ip to listen on (can be 'any')
+
+    struct addrinfo *result;
+    int error;
+    error = getaddrinfo(argv[1], NULL, NULL, &result);
+    if (error != 0)
+    { 
+        fprintf(stderr, "error in getaddrinfo: %s\n", gai_strerror(error));
+        return 1;
+    }
+    // use the first returned value from the resolve (ie. ignore result->ai_next)
+    struct sockaddr_in *listen_address = (struct sockaddr_in *)result->ai_addr;
+
+    // parse the port number
+    port=atoi(argv[2]);
+    if(port == 0) {
         fprintf(stderr, "illegal port number\n");
         return 1;
     }
+
+    printf("Args parsed as: %s:%u\n", inet_ntoa(listen_address->sin_addr), port);
+    //return 0;
 
 #ifdef __WIN32__
     // initialize winsock
@@ -76,13 +100,13 @@ int main(int argc, char *argv[]) {
     memset(&addr, 0, sizeof addr);
     addr.sin_family=AF_INET;
     addr.sin_port=htons(port);
-    addr.sin_addr.s_addr=htonl(INADDR_ANY);
+    addr.sin_addr.s_addr=listen_address->sin_addr.s_addr; // already in network byte order
     if(bind(s, (struct sockaddr *)&addr, sizeof addr)==-1) {
         my_perror("bind");
         return 1;
     }
 
-    printf("sessiond " VERSION " started on port %u/UDP\n", port);
+    printf("sessiond %s started on port %u/UDP\n", VERSION,  port);
     LOG log;
 #ifdef __WIN32__
     _beginthread(log_thread, 0, NULL);
@@ -91,7 +115,9 @@ int main(int argc, char *argv[]) {
     signal(SIGUSR1, signal_handler);
     signal(SIGALRM, signal_handler);
     alarm(LOG_FREQ);
-    log.msg(LOG_NOTICE, "sessiond version " VERSION " started");
+    char buf[256];
+    snprintf(buf, 256, "sessiond version %s started", VERSION);
+    log.msg(LOG_NOTICE, buf);
 #endif
     for(;;) // the main loop
         process_request(s, port, log);

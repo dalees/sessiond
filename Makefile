@@ -11,6 +11,7 @@ OBJS=sessiond.o comm.o data.o log.o
 DOCS=COPYING PROTOCOL README
 
 sessiond: $(OBJS)
+	g++ $(OBJS) -o sessiond
 
 sessiond.o: sessiond.cpp Makefile
 comm.o: comm.cpp data.h log.h Makefile
@@ -18,7 +19,7 @@ data.o: data.cpp data.h Makefile
 log.o: log.cpp log.h Makefile
 
 sessiond.exe: $(HDRS) $(SRCS) Makefile
-	i586-mingw32msvc-g++ $(CPPFLAGS) -o sessiond.exe -s $(SRCS) -lws2_32
+#	i586-mingw32msvc-g++ $(CPPFLAGS) -o sessiond.exe -s $(SRCS) -lws2_32
 
 install: sessiond
 	install sessiond $(DSTDIR)
