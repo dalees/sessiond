@@ -36,6 +36,7 @@
 
 // logging is performed every 5 minutes
 #define LOG_FREQ 300
+static const char* ANY_STRING = "any";
 
 void process_request(const int, const u_short, LOG &); // defined in comm.cpp
 void my_perror(const char *); // defined in comm.cpp
@@ -46,38 +47,55 @@ static void signal_handler(int);
 #endif
 static void send_empty();
 static unsigned int port;
-//static listen_ip;
+static struct sockaddr_in listen_address;
 static int s;
+
+void usage( const char *bin_path )
+{
+    fprintf(stderr, "Usage: %s <hostname|ipv4|'%s'> <udp port>\n", bin_path, ANY_STRING);
+}
 
 int main(int argc, char *argv[]) {
     if (argc != 3) 
     {
-        fprintf(stderr, "Usage: %s <hostname|ip|'any'> <udp port>\n", argv[0]);
+        fprintf(stderr, "Invalid number of arguments. Expected 2, got %d\n", argc-1);
+        usage(argv[0]);
         return 1;
     }
+
+    // set the listen address 
+    memset(&listen_address, 0, sizeof(listen_address));
 
     // parse the ip to listen on (can be 'any')
-
-    struct addrinfo *result;
-    int error;
-    error = getaddrinfo(argv[1], NULL, NULL, &result);
-    if (error != 0)
-    { 
-        fprintf(stderr, "error in getaddrinfo: %s\n", gai_strerror(error));
-        return 1;
+    if ( strncmp(argv[1], ANY_STRING, sizeof(ANY_STRING)) == 0 )
+    {
+        listen_address.sin_addr.s_addr = htonl(INADDR_ANY);
     }
-    // use the first returned value from the resolve (ie. ignore result->ai_next)
-    struct sockaddr_in *listen_address = (struct sockaddr_in *)result->ai_addr;
+    else
+    {
+        struct addrinfo *result;
+        int error;
+        error = getaddrinfo(argv[1], NULL, NULL, &result);
+        if (error != 0)
+        { 
+            fprintf(stderr, "error in getaddrinfo: %s\n", gai_strerror(error));
+            usage(argv[0]);
+            return 1;
+        }
+        // use the first returned value from the resolve (ie. ignore result->ai_next)
+        struct sockaddr_in *lookup_address = (struct sockaddr_in *)(result->ai_addr);
+        listen_address.sin_addr.s_addr = lookup_address->sin_addr.s_addr;
+    }
 
     // parse the port number
     port=atoi(argv[2]);
     if(port == 0) {
         fprintf(stderr, "illegal port number\n");
+        usage(argv[0]);
         return 1;
     }
 
-    printf("Args parsed as: %s:%u\n", inet_ntoa(listen_address->sin_addr), port);
-    //return 0;
+    printf("Args parsed as: %s:%u\n", inet_ntoa(listen_address.sin_addr), port);
 
 #ifdef __WIN32__
     // initialize winsock
@@ -100,18 +118,23 @@ int main(int argc, char *argv[]) {
     memset(&addr, 0, sizeof addr);
     addr.sin_family=AF_INET;
     addr.sin_port=htons(port);
-    addr.sin_addr.s_addr=listen_address->sin_addr.s_addr; // already in network byte order
+    addr.sin_addr.s_addr=listen_address.sin_addr.s_addr; // already in network byte order
     if(bind(s, (struct sockaddr *)&addr, sizeof addr)==-1) {
         my_perror("bind");
         return 1;
     }
 
-    printf("sessiond %s started on port %u/UDP\n", VERSION,  port);
+    printf("sessiond %s started on %s:%u/UDP\n", VERSION, inet_ntoa(addr.sin_addr), port);
     LOG log;
 #ifdef __WIN32__
     _beginthread(log_thread, 0, NULL);
 #else
-    daemon(0, 0);
+    int ret = daemon(0, 0);
+    if ( ret != 0 )
+    {
+        my_perror("daemonise");
+        return 1;
+    }
     signal(SIGUSR1, signal_handler);
     signal(SIGALRM, signal_handler);
     alarm(LOG_FREQ);
