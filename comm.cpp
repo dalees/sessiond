@@ -31,6 +31,7 @@
 #include <errno.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #endif
 
 #ifdef __WIN32__
@@ -39,8 +40,6 @@ static const char *winsock_error(); // defined in comm.cpp
 
 static void mem2bytes(BYTES &dst, const unsigned char *src, const unsigned l);
 static void bytes2mem(unsigned char *dst, const BYTES &src);
-//static BYTES mem2bytes(const unsigned char *, const unsigned);
-//static void bytes2mem(unsigned char *, const BYTES &);
 static void stats(LOG &);
 
 #define CACHE_CMD_NEW     0x00
@@ -60,11 +59,13 @@ typedef struct {
 static DATA data;
 static unsigned long long delta_hits=0, delta_misses=0, delta_trans=0;
 
-void process_request(const int s, const u_short port, LOG &log) {
+void process_request(const int s, const unsigned short port, LOG &log) {
     CACHE_PACKET packet;
     struct sockaddr addr;
     socklen_t addrlen=sizeof addr;
+    //log.msg(LOG_DEBUG, "waiting for packet");
     ssize_t len=recvfrom(s, (char *)&packet, sizeof packet, 0, &addr, &addrlen);
+    //log.msg(LOG_DEBUG, "Recieved packet");
     if(len==-1) {
         log.err(LOG_ERR, "recvfrom");
 #ifdef __WIN32__
@@ -75,14 +76,16 @@ void process_request(const int s, const u_short port, LOG &log) {
         return;
     }
     const sockaddr_in *in_addr=(sockaddr_in *)&addr;
-    if(!len && in_addr->sin_family==AF_INET &&
+    // check for logging packet
+    if( len == 0 &&
+            in_addr->sin_family==AF_INET &&
             in_addr->sin_port==htons(port) &&
-            in_addr->sin_addr.s_addr==htonl(INADDR_LOOPBACK)) {
+            in_addr->sin_addr.s_addr==htonl(INADDR_LOOPBACK) ) {
         stats(log);
         return;
     }
-    if(len<(int)(sizeof packet-MAX_VAL_LEN) || packet.version!=1) {
-        log.msg(LOG_ERR, "malformed packet received");
+    if(len<(int)(sizeof(packet)-MAX_VAL_LEN) || packet.version != 1) {
+        log.msg(LOG_ERR, "Malformed packet received from %s", inet_ntoa(in_addr->sin_addr));
         return;
     }
     ++delta_trans;
@@ -92,7 +95,9 @@ void process_request(const int s, const u_short port, LOG &log) {
         BYTES v;
 		mem2bytes(v, packet.val, len-(sizeof packet-MAX_VAL_LEN));
         data.insert(k, v, ntohs(packet.timeout));
+        //log.msg(LOG_DEBUG, "Added new value for key '%s'", packet.key);
     } else if(packet.type==CACHE_CMD_GET) {
+        //log.msg(LOG_DEBUG, "Recieved GET packet.");
         len=sizeof(packet)-(sizeof(u_char) * MAX_VAL_LEN);
 		BYTES v;
         if(data.find(k, v)) {
@@ -104,25 +109,34 @@ void process_request(const int s, const u_short port, LOG &log) {
             ++delta_misses;
             packet.type=CACHE_RESP_ERR;
         }
+        //log.msg(LOG_DEBUG, "Replying to GET packet for '%s' with '%s'. Packet size %d.", packet.key, packet.val, len);
         if(sendto(s, (char *)&packet, len, 0, &addr, addrlen)==-1)
-            log.err(LOG_ERR, "sendto");
+            log.err(LOG_ERR, "Sendto failed to send packet to %s", inet_ntoa(in_addr->sin_addr));
+        //else
+            //log.msg(LOG_DEBUG, "Sent packet");
     } else if(packet.type==CACHE_CMD_REMOVE) {
         data.erase(k);
+        //log.msg(LOG_DEBUG, "Removed key '%s'", packet.key);
     } else {
-        log.msg(LOG_ERR, "incorrect packet type");
+        //log.msg(LOG_ERR, "Incorrect packet type");
         --delta_trans;
     }
 }
 
 static void mem2bytes(BYTES &dst, const unsigned char *src, const unsigned l) {
-    for(unsigned i=0; i<l; ++i)
-        dst[i]=src[i];
+    dst.clear();
+    for(unsigned int i=0; i<l; ++i)
+    {
+        dst.push_back(src[i]);
+    }
 }
 
 static void bytes2mem(unsigned char *dst, const BYTES &src) {
     const unsigned length=src.size();
     for(unsigned i=0; i<length; ++i)
+    {
         dst[i]=src[i];
+    }
 }
 
 static unsigned long long total_hits=0, total_misses=0, total_trans=0;

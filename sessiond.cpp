@@ -38,7 +38,7 @@
 #define LOG_FREQ 300
 static const char* ANY_STRING = "any";
 
-void process_request(const int, const u_short, LOG &); // defined in comm.cpp
+void process_request(const int, const unsigned short, LOG &); // defined in comm.cpp
 void my_perror(const char *); // defined in comm.cpp
 #ifdef __WIN32__
 static void log_thread(void *);
@@ -46,7 +46,7 @@ static void log_thread(void *);
 static void signal_handler(int);
 #endif
 static void send_empty();
-static unsigned int port;
+static unsigned short port;
 static struct sockaddr_in listen_address;
 static int s;
 
@@ -90,12 +90,16 @@ int main(int argc, char *argv[]) {
     // parse the port number
     port=atoi(argv[2]);
     if(port == 0) {
-        fprintf(stderr, "illegal port number\n");
+        fprintf(stderr, "illegal port number.\n");
         usage(argv[0]);
         return 1;
     }
-
-    printf("Args parsed as: %s:%u\n", inet_ntoa(listen_address.sin_addr), port);
+    else if(port > 65536) {
+        fprintf(stderr, "Large port number.\n");
+        usage(argv[0]);
+        return 1;
+    }
+    //printf("Args parsed as: %s:%u\n", inet_ntoa(listen_address.sin_addr), port);
 
 #ifdef __WIN32__
     // initialize winsock
@@ -116,9 +120,9 @@ int main(int argc, char *argv[]) {
     // bind it to the specified port
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof addr);
-    addr.sin_family=AF_INET;
-    addr.sin_port=htons(port);
-    addr.sin_addr.s_addr=listen_address.sin_addr.s_addr; // already in network byte order
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    addr.sin_addr.s_addr = listen_address.sin_addr.s_addr; // already in network byte order
     if(bind(s, (struct sockaddr *)&addr, sizeof addr)==-1) {
         my_perror("bind");
         return 1;
@@ -129,18 +133,19 @@ int main(int argc, char *argv[]) {
 #ifdef __WIN32__
     _beginthread(log_thread, 0, NULL);
 #else
+
+#ifdef DAEMONISE
     int ret = daemon(0, 0);
     if ( ret != 0 )
     {
         my_perror("daemonise");
         return 1;
     }
+#endif
     signal(SIGUSR1, signal_handler);
     signal(SIGALRM, signal_handler);
     alarm(LOG_FREQ);
-    char buf[256];
-    snprintf(buf, 256, "sessiond version %s started", VERSION);
-    log.msg(LOG_NOTICE, buf);
+    log.msg(LOG_NOTICE, "sessiond(version %s) started", VERSION);
 #endif
     for(;;) // the main loop
         process_request(s, port, log);

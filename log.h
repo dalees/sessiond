@@ -29,6 +29,8 @@
 #define LOG_DEBUG       7
 #else
 #include <syslog.h>
+// enable daemon mode, and syslog logging
+#define DAEMONISE
 #endif
 
 // LOG class
@@ -36,8 +38,8 @@ class LOG {
 public:
     LOG();
     ~LOG();
-    void msg(const int, const char *);
-    void err(const int, const char *);
+    void msg(const int, const char *, ...);
+    void err(const int, const char *, ...);
 };
 
 // end of log.h
