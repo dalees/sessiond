@@ -59,7 +59,7 @@ typedef struct {
 static DATA data;
 static unsigned long long delta_hits=0, delta_misses=0, delta_trans=0;
 
-void process_request(const int s, const unsigned short port, LOG &log) {
+void process_request(const int s, const unsigned short port, const unsigned long listen_address, LOG &log) {
     CACHE_PACKET packet;
     struct sockaddr addr;
     socklen_t addrlen=sizeof addr;
@@ -80,7 +80,7 @@ void process_request(const int s, const unsigned short port, LOG &log) {
     if( len == 0 &&
             in_addr->sin_family==AF_INET &&
             in_addr->sin_port==htons(port) &&
-            in_addr->sin_addr.s_addr==htonl(INADDR_LOOPBACK) ) {
+            in_addr->sin_addr.s_addr==listen_address ) {
         stats(log);
         return;
     }

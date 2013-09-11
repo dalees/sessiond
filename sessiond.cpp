@@ -38,7 +38,7 @@
 #define LOG_FREQ 300
 static const char* ANY_STRING = "any";
 
-void process_request(const int, const unsigned short, LOG &); // defined in comm.cpp
+void process_request(const int, const unsigned short, const unsigned long, LOG &); // defined in comm.cpp
 void my_perror(const char *); // defined in comm.cpp
 #ifdef __WIN32__
 static void log_thread(void *);
@@ -148,7 +148,7 @@ int main(int argc, char *argv[]) {
     log.msg(LOG_NOTICE, "sessiond(version %s) started", VERSION);
 #endif
     for(;;) // the main loop
-        process_request(s, port, log);
+        process_request(s, port, listen_address.sin_addr.s_addr, log);
 }
 
 
@@ -176,7 +176,7 @@ static void send_empty() { // send an empty UDP packet
     memset(&addr, 0, sizeof addr);
     addr.sin_family=AF_INET;
     addr.sin_port=htons(port);
-    addr.sin_addr.s_addr=htonl(INADDR_LOOPBACK);
+    addr.sin_addr.s_addr=listen_address.sin_addr.s_addr;
     sendto(s, "", 0, 0, (struct sockaddr *)&addr, sizeof addr);
 }
 
